@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Oscillators</title>
+<!-- <script src="jquery&#45;3.6.0.min.js"></script> -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<style>
+    .oscillator {
+        border-radius: 5px;
+        border: 2px solid teal;
+        padding: 20px;
+        display: inline-block;
+    }
+    .selected {
+        background: yellow;
+    }
+    .is_enabled {
+        display: block;
+        border-radius: 5px;
+    }
+    .is_enabled[val="true"] {
+        background: green;
+    }
+    .is_enabled[val="false"] {
+        background: darkred;
+    }
+
+    #oscillators {
+        margin: 20px;
+        padding: 20px;
+        display: inline-block;
+    }
+
+</style>
+</head>
+<body>
+<div class="control">
+     <button type="button" id="addOscillatorBtn"> Add oscillator </button> 
+</div>
+<div id="oscillators">
+    <span class="oscillator">
+        Frequency: <span class="frequency"></span>
+        <span class="is_enabled" val="false">&nbsp;</span>
+    </span>
+</div>
+<script type="text/javascript">
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const grossTune = 5;
+    const mediumTune = 0.5;
+    const fineTune = 0.05;
+    const keys = [
+        {key: "q", direction: "up",   tune: grossTune },
+        {key: "a", direction: "down", tune: grossTune },
+        {key: "w", direction: "up",   tune: mediumTune},
+        {key: "s", direction: "down", tune: mediumTune},
+        {key: "e", direction: "up",   tune: fineTune  },
+        {key: "d", direction: "down", tune: fineTune  }
+    ];
+
+    var oscillators = [];
+    var oscIndex = -1;
+    var direction = "";
+    var speed = 1;
+
+    class SlowStartNode {
+        constructor(audioContext) {
+            this.node = audioCtx.createScriptProcessor(256, 1, 1);
+            this.prevSample = 0.0;
+            this.enabled = false;
+            this.enabledFor = 0;
+            this.fixingUp = false;
+            this.fixingDown = false;
+            this.node.onaudioprocess = function(audioProcessingEvent) {
+                var inputBuffer = audioProcessingEvent.inputBuffer;
+                var outputBuffer = audioProcessingEvent.outputBuffer;
+                for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+                    var inputData = inputBuffer.getChannelData(channel);
+                    var outputData = outputBuffer.getChannelData(channel);
+                    var diffVal = 0;
+                    for (var i = 0; i < inputBuffer.length; i++) {
+                        // samples values are from -1 to 1
+                        diffVal = this.prevSample - inputData[i];
+                        this.fixingDown = (diffVal > 0.002);
+                        this.fixingUp = (diffVal < -0.002);
+                        if (this.enabled && this.fixingDown) {
+                            outputData[i] = this.prevSample - 0.0015;
+                        } else if (this.enabled && this.fixingUp) {
+                            outputData[i] = this.prevSample + 0.0015;
+                        } else {
+                            outputData[i] = inputData[i];
+                        }
+                        if (this.enabled) {
+                            this.enabledFor++;
+                            this.enabled = (this.enabledFor < 400);
+                        } else {
+                            this.enabledFor = 0;
+                        }
+                        this.prevSample = outputData[i];
+                    }
+                }
+            }
+        }
+    }
+
+    class Oscillator {
+        constructor(audioContext) {
+            this.node = audioContext.createOscillator();
+            this.gainNode = audioContext.createGain();
+            this.slowStartNode = new SlowStartNode(audioContext);
+            this.node.connect(this.gainNode);
+            // this.gainNode.connect(audioContext.destination);
+            this.gainNode.connect(this.slowStartNode.node);
+            this.slowStartNode.node.connect(audioContext.destination);
+
+            this.volume = 0.8
+
+            this.node.frequency.value = 42;
+            this.node.type = "sine";
+            this.gainNode.gain.value = 0;
+            this.muted = true;
+
+
+            this.node.start();
+        }
+        muteToggle() {
+            this.slowStartNode.node.enabled = true;
+            if (this.muted) {
+                this.gainNode.gain.value = this.volume;
+            } else {
+                this.gainNode.gain.value = 0;
+            }
+            this.muted = !this.muted;
+        }
+    }
+    
+    function manualLoop() {
+        setTimeout(function() {
+            manualLoop();         
+            if (direction == "up"){
+                oscillators[oscIndex].node.frequency.value += speed;
+            }      
+            if (direction == "down"){
+                oscillators[oscIndex].node.frequency.value -= speed;
+            }
+            $('.oscillator.selected .frequency').html(oscillators[oscIndex].node.frequency.value.toFixed(2));
+        }, 40)
+    };
+
+    $(document).ready(function() {
+        oscillators.push(new Oscillator(audioCtx));
+        oscIndex = 0;
+        $(".oscillator").toggleClass("selected");
+        manualLoop();
+
+        $("#addOscillatorBtn").click(function(){
+            oscillators.push(new Oscillator(audioCtx));
+           
+            var newOsc = $(".oscillator").last().removeClass("selected").clone(true);
+            newOsc.addClass("selected");
+            newOsc.children(".is_enabled").first().attr("val", "false");
+            newOsc.appendTo("#oscillators");
+            oscIndex++;
+
+            // remove focus from clicked button
+            $(this).blur();
+        });
+    }); 
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key == " ") { // space bar
+            oscillators[oscIndex].muteToggle();
+            $(".oscillator.selected .is_enabled").first().attr("val", function(index, attr) {
+                return attr == "false" ? "true" : "false";
+            });
+        }
+        for (var i = keys.length - 1; i >= 0; i--) {
+            if(event.key == keys[i].key) {
+                direction = keys[i].direction;
+                speed = keys[i].tune; 
+            } 
+        }
+    });
+
+    document.addEventListener('keyup', function(event) {
+        direction = "";
+    });    
+</script>
+</body>
+</html>
+
