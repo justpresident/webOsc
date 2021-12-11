@@ -15,34 +15,87 @@
     .selected {
         background: yellow;
     }
-    .is_enabled {
+    .oscState {
         display: block;
         border-radius: 5px;
-    }
-    .is_enabled[val="true"] {
         background: green;
     }
-    .is_enabled[val="false"] {
+    .oscState.muted {
         background: darkred;
     }
 
     #oscillators {
-        margin: 20px;
-        padding: 20px;
+        margin: 0px;
+        margin-bottom: 10px;
+        padding: 0px;
         display: inline-block;
     }
 
+    #controls_help {
+        display: inline-block;
+        border-radius: 5px;
+        border: 3px solid black;
+        background: lightgrey;
+    }
+    #controls_help ul {
+        display: inline-block;
+        padding: 5px;
+        margin: 0px;
+    }
+    #controls_help li {
+        border-radius: 5px;
+        border: 3px solid black;
+        display: inline-block;
+        padding: 5px;
+        margin: 2px;
+        float: left;
+    }
+    #controls_help li:first-child {
+        border: none;
+    }
+    .pressed {
+        background: olive;
+    }
 </style>
 </head>
 <body>
-<div class="control">
-     <button type="button" id="addOscillatorBtn"> Add oscillator </button> 
-</div>
 <div id="oscillators">
     <span class="oscillator">
         Frequency: <span class="frequency"></span>
-        <span class="is_enabled" val="false">&nbsp;</span>
+        <span class="oscState">&nbsp;</span>
     </span>
+</div>
+<br/>
+<div id="controls_help">
+    <ul>
+        <li>Start/Stop:</li>
+        <li id="spaceBtn">Space</li>
+    </ul>
+    <br/>
+    <ul>
+        <li>Add Oscillator:</li>
+        <li id="nBtn">N</li>
+    </ul>
+    <br/>
+    <ul>
+        <li>Select:</li>
+        <li id="leftBtn">&larr;</li>
+        <li id="rightBtn">&rarr;</li>
+    </ul>
+    <br/>
+    <ul>
+        <li>Volume Up:</li>
+        <li id="qBtn">Q</li>
+        <li id="wBtn">W</li>
+        <li id="eBtn">E</li>
+    </ul>
+    <br/>
+    <ul>
+        <li>Volume Down:</li>
+        <li id="aBtn">A</li>
+        <li id="sBtn">S</li>
+        <li id="dBtn">D</li>
+    </ul>
 </div>
 <script type="text/javascript">
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -143,36 +196,66 @@
             if (direction == "down"){
                 oscillators[oscIndex].node.frequency.value -= speed;
             }
-            $('.oscillator.selected .frequency').html(oscillators[oscIndex].node.frequency.value.toFixed(2));
+            updateUI();
         }, 40)
     };
+
+    function updateUI() {
+        while ($(".oscillator").length < oscillators.length) {
+            var newOsc = $(".oscillator").last().clone(true);
+            newOsc.appendTo("#oscillators");
+        }
+
+        var uiOscillators = $(".oscillator");
+        for (let i = 0; i < oscillators.length; i++) {
+            var osc = uiOscillators.eq(i);
+            osc.toggleClass("selected", (oscIndex == i))
+            osc.children(".oscState").toggleClass("muted", oscillators[i].muted);
+            osc.children(".frequency").html(oscillators[i].node.frequency.value.toFixed(2))
+        }
+    }
 
     $(document).ready(function() {
         oscillators.push(new Oscillator(audioCtx));
         oscIndex = 0;
-        $(".oscillator").toggleClass("selected");
+        updateUI();
         manualLoop();
-
-        $("#addOscillatorBtn").click(function(){
-            oscillators.push(new Oscillator(audioCtx));
-           
-            var newOsc = $(".oscillator").last().removeClass("selected").clone(true);
-            newOsc.addClass("selected");
-            newOsc.children(".is_enabled").first().attr("val", "false");
-            newOsc.appendTo("#oscillators");
-            oscIndex++;
-
-            // remove focus from clicked button
-            $(this).blur();
-        });
     }); 
+
+
+    function btnId(key) {
+        if (key == " ") {
+            return "#spaceBtn";
+        } else if (key == "ArrowLeft") {
+            return "#leftBtn";
+        } else if (key == "ArrowRight") {
+            return "#rightBtn";
+        } else {
+            return "#" + key + "Btn";
+        }
+    };
 
     document.addEventListener('keydown', function(event) {
         if (event.key == " ") { // space bar
             oscillators[oscIndex].muteToggle();
-            $(".oscillator.selected .is_enabled").first().attr("val", function(index, attr) {
-                return attr == "false" ? "true" : "false";
-            });
+            updateUI();
+        } else if (event.key == "n") {
+            oscillators.push(new Oscillator(audioCtx));
+            oscIndex++;
+ 
+            updateUI();
+        } else if (event.key == "ArrowLeft") {
+            oscIndex--;
+            if (oscIndex < 0) {
+                oscIndex = oscillators.length - 1;
+            }
+            updateUI();
+        } else if (event.key == "ArrowRight") {
+            oscIndex++;
+            if (oscIndex >= oscillators.length) {
+                oscIndex = 0;
+            }
+            updateUI();
         }
         for (var i = keys.length - 1; i >= 0; i--) {
             if(event.key == keys[i].key) {
@@ -180,9 +263,12 @@
                 speed = keys[i].tune; 
             } 
         }
+        var buttonId = btnId(event.key)
+        $(buttonId).addClass("pressed");
     });
 
     document.addEventListener('keyup', function(event) {
+        $(btnId(event.key)).removeClass("pressed");
         direction = "";
     });    
 </script>
