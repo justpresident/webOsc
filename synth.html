@@ -119,37 +119,54 @@
     class SlowStartNode {
         constructor(audioContext) {
             this.node = audioCtx.createScriptProcessor(256, 1, 1);
-            this.prevSample = 0.0;
-            this.enabled = false;
-            this.enabledFor = 0;
-            this.fixingUp = false;
-            this.fixingDown = false;
+            this.node.prevSample = 0.0;
+            this.node.enabled = false;
+            this.node.prevZeroes = 0;
+            this.node.enabledFor = 0;
+            this.node.fixingUp = false;
+            this.node.fixingDown = false;
             this.node.onaudioprocess = function(audioProcessingEvent) {
                 var inputBuffer = audioProcessingEvent.inputBuffer;
                 var outputBuffer = audioProcessingEvent.outputBuffer;
                 for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
                     var inputData = inputBuffer.getChannelData(channel);
                     var outputData = outputBuffer.getChannelData(channel);
-                    var diffVal = 0;
+                    const toFixSamplesNum = 5000.0;
+                    // samples values are from -1 to 1
                     for (var i = 0; i < inputBuffer.length; i++) {
-                        // samples values are from -1 to 1
-                        diffVal = this.prevSample - inputData[i];
-                        this.fixingDown = (diffVal > 0.002);
-                        this.fixingUp = (diffVal < -0.002);
+                        if (!this.enabled && this.prevZeroes > 5) {
+                            this.fixingUp = inputData[i] != 0
+                            this.enabled = inputData[i] != 0;
+                            this.enabledFor = 0;
+                        } else if (!this.enabled) {
+                            this.fixingUp = false;
+                        }
+                        var isNextZero = ((i < inputBuffer.length -1) && inputData[i+1] == 0.0);
+                        if (!this.enabled && this.prevSample != 0.0 && inputData[i] == 0.0 && isNextZero) {
+                            this.fixingDown = true;
+                            this.enabled = true;
+                            this.enabledFor = 0;
+                        } else if (!this.enabled) {
+                            this.fixingDown = false;
+                        }
                         if (this.enabled && this.fixingDown) {
-                            outputData[i] = this.prevSample - 0.0015;
+                            outputData[i] = this.prevSample * (toFixSamplesNum-this.enabledFor)/toFixSamplesNum;
                         } else if (this.enabled && this.fixingUp) {
-                            outputData[i] = this.prevSample + 0.0015;
+                            outputData[i] = inputData[i]*this.enabledFor/toFixSamplesNum;
                         } else {
                             outputData[i] = inputData[i];
                         }
                         if (this.enabled) {
                             this.enabledFor++;
-                            this.enabled = (this.enabledFor < 400);
-                        } else {
-                            this.enabledFor = 0;
+                            this.enabled = (this.enabledFor < toFixSamplesNum);
                         }
                         this.prevSample = outputData[i];
+
+                        if (inputData[i] == 0) {
+                            this.prevZeroes++;
+                        } else {
+                            this.prevZeroes = 0;
+                        }
                     }
                 }
             }
@@ -177,7 +194,7 @@
             this.node.start();
         }
         muteToggle() {
-            this.slowStartNode.node.enabled = true;
+            // this.slowStartNode.node.enabled = true;
             if (this.muted) {
                 this.gainNode.gain.value = this.volume;
             } else {
