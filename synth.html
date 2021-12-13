@@ -6,6 +6,9 @@
 <!-- <script src="jquery&#45;3.6.0.min.js"></script> -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <style>
+    body {
+      font-family: 'Courier New', monospace;
+    }
     .oscillator {
         border-radius: 5px;
         border: 2px solid teal;
@@ -16,9 +19,12 @@
         background: yellow;
     }
     .oscState {
-        display: block;
+        display: inline-block;
+        width: 40%;
+        text-align: center;
         border-radius: 5px;
         background: green;
+        color: lightblue;
     }
     .oscState.muted {
         background: darkred;
@@ -31,18 +37,18 @@
         display: inline-block;
     }
 
-    #controls_help {
+    .controls_help {
         display: inline-block;
         border-radius: 5px;
         border: 3px solid black;
         background: lightgrey;
     }
-    #controls_help ul {
+    .controls_help ul {
         display: inline-block;
         padding: 5px;
         margin: 0px;
     }
-    #controls_help li {
+    .controls_help li {
         border-radius: 5px;
         border: 3px solid black;
         display: inline-block;
@@ -50,7 +56,7 @@
         margin: 2px;
         float: left;
     }
-    #controls_help li:first-child {
+    .controls_help li:first-child {
         border: none;
     }
     .pressed {
@@ -62,11 +68,13 @@
 <div id="oscillators">
     <span class="oscillator">
         Frequency: <span class="frequency"></span>
-        <span class="oscState">&nbsp;</span>
+        <br/>
+        <span class="oscState leftChannel">Left</span>
+        <span class="oscState rightChannel">Right</span>
     </span>
 </div>
 <br/>
-<div id="controls_help">
+<div class="controls_help">
     <ul>
         <li>Start/Stop:</li>
         <li id="spaceBtn">Space</li>
@@ -84,6 +92,12 @@
     </ul>
     <br/>
     <ul>
+        <li>Toggle Left/Right:</li>
+        <li id="lBtn">L</li>
+        <li id="rBtn">R</li>
+    </ul>
+    <br/>
+    <ul>
         <li>Volume Up:</li>
         <li id="qBtn">Q</li>
         <li id="wBtn">W</li>
@@ -95,6 +109,12 @@
         <li id="aBtn">A</li>
         <li id="sBtn">S</li>
         <li id="dBtn">D</li>
+    </ul>
+</div>
+<div class="controls_help">
+    <ul>
+        <li>Select all:</li>
+        <li id="shiftBtn">&#8679;Shift</li>
     </ul>
 </div>
 <script type="text/javascript">
@@ -113,59 +133,66 @@
 
     var oscillators = [];
     var oscIndex = -1;
+    var shiftPressed = false;
     var direction = "";
     var speed = 1;
 
     class SlowStartNode {
         constructor(audioContext) {
-            this.node = audioCtx.createScriptProcessor(256, 1, 1);
-            this.node.prevSample = 0.0;
-            this.node.enabled = false;
-            this.node.prevZeroes = 0;
-            this.node.enabledFor = 0;
-            this.node.fixingUp = false;
-            this.node.fixingDown = false;
+            this.node = audioCtx.createScriptProcessor(256, 2, 2);
+            this.node.state = [];
+            for (let i = 0; i < 2; i++) {
+                this.node.state[i] = {
+                    prevSample: 0.0,
+                    enabled: false,
+                    prevZeroes: 0,
+                    enabledFor: 0,
+                    fixingUp: false,
+                    fixingDown: false
+                };
+            }
             this.node.onaudioprocess = function(audioProcessingEvent) {
                 var inputBuffer = audioProcessingEvent.inputBuffer;
                 var outputBuffer = audioProcessingEvent.outputBuffer;
+                const toFixSamplesNum = 5000.0;
                 for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
                     var inputData = inputBuffer.getChannelData(channel);
                     var outputData = outputBuffer.getChannelData(channel);
-                    const toFixSamplesNum = 5000.0;
+                    var oscState = this.state[channel];
                     // samples values are from -1 to 1
                     for (var i = 0; i < inputBuffer.length; i++) {
-                        if (!this.enabled && this.prevZeroes > 5) {
-                            this.fixingUp = inputData[i] != 0
-                            this.enabled = inputData[i] != 0;
-                            this.enabledFor = 0;
-                        } else if (!this.enabled) {
-                            this.fixingUp = false;
+                        if (!oscState.enabled && oscState.prevZeroes > 5 && inputData[i] != 0) {
+                            oscState.fixingUp = true
+                            oscState.enabled = true;
+                            oscState.enabledFor = 0;
+                        } else if (!oscState.enabled) {
+                            oscState.fixingUp = false;
                         }
                         var isNextZero = ((i < inputBuffer.length -1) && inputData[i+1] == 0.0);
-                        if (!this.enabled && this.prevSample != 0.0 && inputData[i] == 0.0 && isNextZero) {
-                            this.fixingDown = true;
-                            this.enabled = true;
-                            this.enabledFor = 0;
-                        } else if (!this.enabled) {
-                            this.fixingDown = false;
+                        if (!oscState.enabled && oscState.prevSample != 0.0 && inputData[i] == 0.0 && isNextZero) {
+                            oscState.fixingDown = true;
+                            oscState.enabled = true;
+                            oscState.enabledFor = 0;
+                        } else if (!oscState.enabled) {
+                            oscState.fixingDown = false;
                         }
-                        if (this.enabled && this.fixingDown) {
-                            outputData[i] = this.prevSample * (toFixSamplesNum-this.enabledFor)/toFixSamplesNum;
-                        } else if (this.enabled && this.fixingUp) {
-                            outputData[i] = inputData[i]*this.enabledFor/toFixSamplesNum;
+                        if (oscState.enabled && oscState.fixingDown) {
+                            outputData[i] = oscState.prevSample * (toFixSamplesNum-oscState.enabledFor)/toFixSamplesNum;
+                        } else if (oscState.enabled && oscState.fixingUp) {
+                            outputData[i] = inputData[i]*oscState.enabledFor/toFixSamplesNum;
                         } else {
                             outputData[i] = inputData[i];
                         }
-                        if (this.enabled) {
-                            this.enabledFor++;
-                            this.enabled = (this.enabledFor < toFixSamplesNum);
+                        if (oscState.enabled) {
+                            oscState.enabledFor++;
+                            oscState.enabled = (oscState.enabledFor < toFixSamplesNum);
                         }
-                        this.prevSample = outputData[i];
+                        oscState.prevSample = outputData[i];
 
                         if (inputData[i] == 0) {
-                            this.prevZeroes++;
+                            oscState.prevZeroes++;
                         } else {
-                            this.prevZeroes = 0;
+                            oscState.prevZeroes = 0;
                         }
                     }
                 }
@@ -178,10 +205,15 @@
             this.node = audioContext.createOscillator();
             this.gainNode = audioContext.createGain();
             this.slowStartNode = new SlowStartNode(audioContext);
+            this.stereoPannerNode = audioContext.createStereoPanner();
+
             this.node.connect(this.gainNode);
-            // this.gainNode.connect(audioContext.destination);
-            this.gainNode.connect(this.slowStartNode.node);
+            this.gainNode.connect(this.stereoPannerNode);
+            this.stereoPannerNode.connect(this.slowStartNode.node);
             this.slowStartNode.node.connect(audioContext.destination);
+            // this.gainNode.connect(this.slowStartNode.node);
+            // this.slowStartNode.node.connect(this.stereoPannerNode);
+            // this.stereoPannerNode.connect(audioContext.destination);
 
             this.volume = 0.8
 
@@ -194,7 +226,6 @@
             this.node.start();
         }
         muteToggle() {
-            // this.slowStartNode.node.enabled = true;
             if (this.muted) {
                 this.gainNode.gain.value = this.volume;
             } else {
@@ -202,18 +233,88 @@
             }
             this.muted = !this.muted;
         }
+        async leftToggle() {
+            if (this.muted) {
+                this.stereoPannerNode.pan.value = -1;
+                this.muteToggle();
+                return;
+            }
+            var panValue = this.stereoPannerNode.pan.value;
+            if (panValue == -1) {
+                this.muteToggle();
+                this.stereoPannerNode.pan.value = 0;
+            } else if (panValue == 1) {
+                // await this.panTo(0);
+                this.stereoPannerNode.pan.value = 0;
+            } else {
+                // await this.panTo(1);
+                this.stereoPannerNode.pan.value = 1;
+            }
+            updateUI();
+        }
+        async rightToggle() {
+            if (this.muted) {
+                this.stereoPannerNode.pan.value = 1;
+                this.muteToggle();
+                return;
+            }
+            var panValue = this.stereoPannerNode.pan.value;
+            if (panValue == 1) {
+                this.muteToggle();
+                this.stereoPannerNode.pan.value = 0;
+            } else if (panValue == -1) {
+                // await this.panTo(0);
+                this.stereoPannerNode.pan.value = 0;
+            } else {
+                // await this.panTo(-1);
+                this.stereoPannerNode.pan.value = -1;
+            }
+            updateUI();
+        }
+        panTo(value) {
+            this.stereoPannerNode.startedAt = Date.now();
+            this.stereoPannerNode.targetValue = value;
+
+            function slowPan(stereoPanner, resolve) {
+                let msInWork = Date.now() - stereoPanner.startedAt;
+                var toAdd = 0.000001*msInWork*msInWork*msInWork;
+                toAdd = Math.min(toAdd, 0.003);
+                toAdd = 0.0025;
+                if (stereoPanner.pan.value < stereoPanner.targetValue) {
+                    stereoPanner.pan.value = Math.min(stereoPanner.targetValue, stereoPanner.pan.value + toAdd);
+                } else {
+                    stereoPanner.pan.value = Math.max(stereoPanner.targetValue, stereoPanner.pan.value - toAdd);
+                }
+                if (stereoPanner.pan.value == stereoPanner.targetValue) {
+                    resolve(true);
+                    return;
+                }
+                setTimeout(() => slowPan(stereoPanner, resolve), 1);
+            }
+            return new Promise(resolve => {
+                slowPan(this.stereoPannerNode, resolve);
+            });
+        }
     }
-    
+
+    function doWithSelected(oscFn) {
+        for(let i = 0; i < oscillators.length; i++) {
+            if (shiftPressed || i == oscIndex) {
+                oscFn(oscillators[i]);
+            }
+        }
+    }
+
     function manualLoop() {
         setTimeout(function() {
             manualLoop();         
             if (direction == "up"){
-                oscillators[oscIndex].node.frequency.value += speed;
-            }      
-            if (direction == "down"){
-                oscillators[oscIndex].node.frequency.value -= speed;
+                doWithSelected(osc => osc.node.frequency.value += speed);
+                updateUI();
+            } else if (direction == "down"){
+                doWithSelected(osc => osc.node.frequency.value -= speed);
+                updateUI();
             }
-            updateUI();
         }, 40)
     };
 
@@ -226,8 +327,15 @@
         var uiOscillators = $(".oscillator");
         for (let i = 0; i < oscillators.length; i++) {
             var osc = uiOscillators.eq(i);
-            osc.toggleClass("selected", (oscIndex == i))
-            osc.children(".oscState").toggleClass("muted", oscillators[i].muted);
+            osc.toggleClass("selected", (shiftPressed || oscIndex == i))
+            osc.children(".leftChannel").toggleClass("muted",
+                    oscillators[i].muted
+                    || oscillators[i].stereoPannerNode.pan.value == 1
+                );
+            osc.children(".rightChannel").toggleClass("muted",
+                    oscillators[i].muted
+                    || oscillators[i].stereoPannerNode.pan.value == -1
+                );
             osc.children(".frequency").html(oscillators[i].node.frequency.value.toFixed(2))
         }
     }
@@ -243,6 +351,8 @@
     function btnId(key) {
         if (key == " ") {
             return "#spaceBtn";
+        } else if (key == "Shift") {
+            return "#shiftBtn";
         } else if (key == "ArrowLeft") {
             return "#leftBtn";
         } else if (key == "ArrowRight") {
@@ -254,12 +364,15 @@
 
     document.addEventListener('keydown', function(event) {
         if (event.key == " ") { // space bar
-            oscillators[oscIndex].muteToggle();
+            doWithSelected(osc => osc.muteToggle());
             updateUI();
         } else if (event.key == "n") {
             oscillators.push(new Oscillator(audioCtx));
             oscIndex++;
  
+            updateUI();
+        } else if (event.key == "Shift") {
+            shiftPressed = !shiftPressed;
             updateUI();
         } else if (event.key == "ArrowLeft") {
             oscIndex--;
@@ -273,12 +386,19 @@
                 oscIndex = 0;
             }
             updateUI();
-        }
-        for (var i = keys.length - 1; i >= 0; i--) {
-            if(event.key == keys[i].key) {
-                direction = keys[i].direction;
-                speed = keys[i].tune; 
-            } 
+        } else if (event.key == "l") {
+            doWithSelected(osc => osc.leftToggle());
+            updateUI();
+        } else if (event.key == "r") {
+            doWithSelected(osc => osc.rightToggle());
+            updateUI();
+        } else {
+            for (var i = keys.length - 1; i >= 0; i--) {
+                if(event.key == keys[i].key) {
+                    direction = keys[i].direction;
+                    speed = keys[i].tune;
+                }
+            }
         }
         var buttonId = btnId(event.key)
         $(buttonId).addClass("pressed");
@@ -287,6 +407,7 @@
     document.addEventListener('keyup', function(event) {
         $(btnId(event.key)).removeClass("pressed");
         direction = "";
+        updateUI();
     });    
 </script>
 </body>
