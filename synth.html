@@ -77,44 +77,44 @@
 <div class="controls_help">
     <ul>
         <li>Start/Stop:</li>
-        <li id="spaceBtn">Space</li>
+        <li class=btn key=" " id="spaceBtn">Space</li>
     </ul>
     <br/>
     <ul>
         <li>Add Oscillator:</li>
-        <li id="nBtn">N</li>
+        <li class=btn id="nBtn">N</li>
     </ul>
     <br/>
     <ul>
         <li>Select:</li>
-        <li id="leftBtn">&larr;</li>
-        <li id="rightBtn">&rarr;</li>
+        <li class=btn key="ArrowLeft" id="leftBtn">&larr;</li>
+        <li class=btn key="ArrowRight" id="rightBtn">&rarr;</li>
     </ul>
     <br/>
     <ul>
         <li>Toggle Left/Right:</li>
-        <li id="lBtn">L</li>
-        <li id="rBtn">R</li>
+        <li class=btn id="lBtn">L</li>
+        <li class=btn id="rBtn">R</li>
     </ul>
     <br/>
     <ul>
         <li>Volume Up:</li>
-        <li id="qBtn">Q</li>
-        <li id="wBtn">W</li>
-        <li id="eBtn">E</li>
+        <li class=btn id="qBtn">Q</li>
+        <li class=btn id="wBtn">W</li>
+        <li class=btn id="eBtn">E</li>
     </ul>
     <br/>
     <ul>
         <li>Volume Down:</li>
-        <li id="aBtn">A</li>
-        <li id="sBtn">S</li>
-        <li id="dBtn">D</li>
+        <li class=btn id="aBtn">A</li>
+        <li class=btn id="sBtn">S</li>
+        <li class=btn id="dBtn">D</li>
     </ul>
 </div>
 <div class="controls_help">
     <ul>
         <li>Select all:</li>
-        <li id="shiftBtn">&#8679;Shift</li>
+        <li class=btn key="Shift" id="shiftBtn">&#8679;Shift</li>
     </ul>
 </div>
 <script type="text/javascript">
@@ -317,6 +317,20 @@
         oscIndex = 0;
         updateUI();
         manualLoop();
+        $(".btn").mousedown(function() {
+            var key = $(this).html().toLowerCase();
+            if ($(this).attr("key") != undefined) {
+                key = $(this).attr("key");
+            }
+            processKeyDown(key);
+        });
+        $(".btn").mouseup(function() {
+            var key = $(this).html().toLowerCase();
+            if ($(this).attr("key") != undefined) {
+                key = $(this).attr("key");
+            }
+            processKeyUp(key);
+        });
     }); 
 
 
@@ -334,52 +348,59 @@
         }
     };
 
-    document.addEventListener('keydown', function(event) {
-        if (event.key == " ") { // space bar
+    function processKeyDown(key) {
+        if (key == " ") { // space bar
             doWithSelected(osc => osc.muteToggle());
             updateUI();
-        } else if (event.key == "n") {
+        } else if (key == "n") {
             oscillators.push(new Oscillator(audioCtx));
             oscIndex++;
- 
+
             updateUI();
-        } else if (event.key == "Shift") {
+        } else if (key == "Shift") {
             shiftPressed = !shiftPressed;
             updateUI();
-        } else if (event.key == "ArrowLeft") {
+        } else if (key == "ArrowLeft") {
             oscIndex--;
             if (oscIndex < 0) {
                 oscIndex = oscillators.length - 1;
             }
             updateUI();
-        } else if (event.key == "ArrowRight") {
+        } else if (key == "ArrowRight") {
             oscIndex++;
             if (oscIndex >= oscillators.length) {
                 oscIndex = 0;
             }
             updateUI();
-        } else if (event.key == "l") {
+        } else if (key == "l") {
             doWithSelected(osc => osc.leftToggle());
             updateUI();
-        } else if (event.key == "r") {
+        } else if (key == "r") {
             doWithSelected(osc => osc.rightToggle());
             updateUI();
         } else {
             for (var i = keys.length - 1; i >= 0; i--) {
-                if(event.key == keys[i].key) {
+                if(key == keys[i].key) {
                     direction = keys[i].direction;
                     speed = keys[i].tune;
                 }
             }
         }
-        var buttonId = btnId(event.key)
+        var buttonId = btnId(key)
         $(buttonId).addClass("pressed");
+    }
+    function processKeyUp(key) {
+        $(btnId(key)).removeClass("pressed");
+        direction = "";
+        updateUI();
+    }
+
+    document.addEventListener('keydown', function(event) {
+        processKeyDown(event.key);
     });
 
     document.addEventListener('keyup', function(event) {
-        $(btnId(event.key)).removeClass("pressed");
-        direction = "";
-        updateUI();
+        processKeyUp(event.key);
     });    
 </script>
 </body>
