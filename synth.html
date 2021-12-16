@@ -244,10 +244,8 @@
                 this.muteToggle();
                 this.stereoPannerNode.pan.value = 0;
             } else if (panValue == 1) {
-                // await this.panTo(0);
                 this.stereoPannerNode.pan.value = 0;
             } else {
-                // await this.panTo(1);
                 this.stereoPannerNode.pan.value = 1;
             }
             updateUI();
@@ -263,37 +261,11 @@
                 this.muteToggle();
                 this.stereoPannerNode.pan.value = 0;
             } else if (panValue == -1) {
-                // await this.panTo(0);
                 this.stereoPannerNode.pan.value = 0;
             } else {
-                // await this.panTo(-1);
                 this.stereoPannerNode.pan.value = -1;
             }
             updateUI();
-        }
-        panTo(value) {
-            this.stereoPannerNode.startedAt = Date.now();
-            this.stereoPannerNode.targetValue = value;
-
-            function slowPan(stereoPanner, resolve) {
-                let msInWork = Date.now() - stereoPanner.startedAt;
-                var toAdd = 0.000001*msInWork*msInWork*msInWork;
-                toAdd = Math.min(toAdd, 0.003);
-                toAdd = 0.0025;
-                if (stereoPanner.pan.value < stereoPanner.targetValue) {
-                    stereoPanner.pan.value = Math.min(stereoPanner.targetValue, stereoPanner.pan.value + toAdd);
-                } else {
-                    stereoPanner.pan.value = Math.max(stereoPanner.targetValue, stereoPanner.pan.value - toAdd);
-                }
-                if (stereoPanner.pan.value == stereoPanner.targetValue) {
-                    resolve(true);
-                    return;
-                }
-                setTimeout(() => slowPan(stereoPanner, resolve), 1);
-            }
-            return new Promise(resolve => {
-                slowPan(this.stereoPannerNode, resolve);
-            });
         }
     }
 
