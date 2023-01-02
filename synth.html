@@ -349,6 +349,7 @@
     };
 
     function processKeyDown(key) {
+        audioCtx.resume();
         if (key == " ") { // space bar
             doWithSelected(osc => osc.muteToggle());
             updateUI();
