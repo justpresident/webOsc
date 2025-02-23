@@ -5,6 +5,7 @@
 <title>Oscillators</title>
 <!-- <script src="jquery&#45;3.6.0.min.js"></script> -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="notes.js"></script>
 <style>
     body {
       font-family: 'Courier New', monospace;
@@ -67,11 +68,13 @@
 </head>
 <body>
 <div id="oscillators">
-    <span class="oscillator">
+    <span class="oscillator" index=0>
         Frequency: <span class="frequency"></span>
         <br/>
         <span class="oscState leftChannel">Left</span>
         <span class="oscState rightChannel">Right</span>
+        <select class="noteSelect">
+        </select>
     </span>
 </div>
 <br/>
@@ -142,7 +145,7 @@
     const grossTune = 5;
     const mediumTune = 0.5;
     const fineTune = 0.05;
-    const keys = [
+    const frequencyKeys = [
         {key: "q", direction: "up",   tune: grossTune },
         {key: "a", direction: "down", tune: grossTune },
         {key: "w", direction: "up",   tune: mediumTune},
@@ -156,6 +159,39 @@
     var shiftPressed = false;
     var direction = "";
     var speed = 1;
+
+    function fillNotes(selectElement) {
+        // Add an empty option
+        const option = document.createElement('option');
+        option.value=-1;
+        option.textContent="";
+        selectElement.appendChild(option);
+
+        // Group notes by octave
+        const groupedNotes = {};
+        notes.forEach(note => {
+            const octave = note[1];
+            if (!groupedNotes[octave]) {
+                groupedNotes[octave] = [];
+            }
+            groupedNotes[octave].push(note);
+        });
+
+        // Iterate over grouped notes and create optgroups
+        for (const octave in groupedNotes) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = `Octave ${octave}`;
+
+            groupedNotes[octave].forEach(note => {
+                const option = document.createElement('option');
+                option.value = note[2];  // Note name
+                option.textContent = `${note[0]} - ${note[2]} Hz`;
+                optgroup.appendChild(option);
+            });
+
+            selectElement.appendChild(optgroup);
+        }
+    }
 
     class SlowStartNode {
         constructor(audioContext) {
@@ -299,7 +335,7 @@
 
     function manualLoop() {
         setTimeout(function() {
-            manualLoop();         
+            manualLoop();
             if (direction == "up"){
                 doWithSelected(osc => osc.node.frequency.value += speed);
                 updateUI();
@@ -313,6 +349,7 @@
     function updateUI() {
         while ($(".oscillator").length < oscillators.length) {
             var newOsc = $(".oscillator").last().clone(true);
+            newOsc.attr("index", parseInt(newOsc.attr("index"))+1);
             newOsc.appendTo("#oscillators");
         }
 
@@ -336,6 +373,7 @@
         oscillators.push(new Oscillator(audioCtx));
         oscIndex = 0;
         updateUI();
+        fillNotes($(".noteSelect")[0]);
         manualLoop();
         $(".btn").mousedown(function() {
             var key = $(this).html().toLowerCase();
@@ -351,7 +389,18 @@
             }
             processKeyUp(key);
         });
-    }); 
+        $(".oscillator").mousedown(function() {
+            const selectedOscIndex = parseInt($(this).attr("index"));
+            oscIndex = selectedOscIndex;
+            updateUI();
+        });
+        $('.noteSelect').on('change', function() {
+            const selectedNote = $(this).val();
+            const selectedOscIndex = parseInt($(this).parent().attr("index"));
+            oscillators[selectedOscIndex].node.frequency.value = selectedNote;
+            updateUI();
+        });
+    });
 
 
     function btnId(key) {
@@ -400,10 +449,10 @@
             doWithSelected(osc => osc.rightToggle());
             updateUI();
         } else {
-            for (var i = keys.length - 1; i >= 0; i--) {
-                if(key == keys[i].key) {
-                    direction = keys[i].direction;
-                    speed = keys[i].tune;
+            for (var i = frequencyKeys.length - 1; i >= 0; i--) {
+                if(key == frequencyKeys[i].key) {
+                    direction = frequencyKeys[i].direction;
+                    speed = frequencyKeys[i].tune;
                 }
             }
         }
@@ -422,7 +471,7 @@
 
     document.addEventListener('keyup', function(event) {
         processKeyUp(event.key);
-    });    
+    });
 </script>
 </body>
 </html>
